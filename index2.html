@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>迷宮冒險</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a2e;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 600px;
+            height: 480px;
+            background-color: #16213e;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s;
+        }
+        
+        #cover-screen {
+            background: linear-gradient(135deg, #0f3460, #162447);
+            z-index: 10;
+        }
+        
+        #level-screen {
+            background: linear-gradient(135deg, #162447, #1f4068);
+            z-index: 5;
+            display: none;
+        }
+        
+        #game-screen {
+            z-index: 1;
+            display: none;
+        }
+        
+        #end-screen {
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 8;
+            display: none;
+        }
+        
+        h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #e94560;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        p {
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        button {
+            background-color: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background-color: #ff647f;
+            transform: scale(1.05);
+        }
+        
+        .level-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
+            font-size: 28px;
+            margin: 15px;
+        }
+        
+        #levels {
+            display: flex;
+            margin-top: 20px;
+        }
+        
+        #maze {
+            position: relative;
+            background-color: #0f3460;
+            border: 2px solid #e94560;
+            margin: 20px auto;
+        }
+        
+        .wall {
+            position: absolute;
+            background-color: #16213e;
+        }
+        
+        #player {
+            position: absolute;
+            background-color: #e94560;
+            border-radius: 50%;
+            transition: left 0.1s, top 0.1s;
+            z-index: 3;
+        }
+        
+        .enemy {
+            position: absolute;
+            background-color: #fcbf49;
+            border-radius: 50%;
+            z-index: 2;
+        }
+        
+        #goal {
+            position: absolute;
+            background-color: #80ed99;
+            border-radius: 5px;
+            z-index: 1;
+        }
+        
+        #game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            margin: 10px auto;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 遊戲主頁 -->
+        <div id="cover-screen" class="screen">
+            <h1>迷宮冒險</h1>
+            <p>使用方向鍵控制角色，到達綠色終點！</p>
+            <button id="start-btn" class="pulse">開始遊戲</button>
+        </div>
+        
+        <!-- 難度選擇頁 -->
+        <div id="level-screen" class="screen">
+            <h1>選擇難度</h1>
+            <div id="levels">
+                <button class="level-btn" data-level="1">1</button>
+                <button class="level-btn" data-level="2">2</button>
+                <button class="level-btn" data-level="3">3</button>
+            </div>
+        </div>
+        
+        <!-- 遊戲頁 -->
+        <div id="game-screen" class="screen">
+            <div id="game-info">
+                <div id="timer">時間: 0秒</div>
+                <div id="score">分數: 1000</div>
+            </div>
+            <div id="maze"></div>
+        </div>
+        
+        <!-- 結束頁 -->
+        <div id="end-screen" class="screen">
+            <h1 id="end-title">遊戲結束</h1>
+            <p id="end-score">得分: 0</p>
+            <p id="end-time">用時: 0秒</p>
+            <button id="replay-btn">再玩一次</button>
+            <button id="menu-btn">返回主選單</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM元素
+        const coverScreen = document.getElementById('cover-screen');
+        const levelScreen = document.getElementById('level-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endScreen = document.getElementById('end-screen');
+        const startBtn = document.getElementById('start-btn');
+        const levelBtns = document.querySelectorAll('.level-btn');
+        const replayBtn = document.getElementById('replay-btn');
+        const menuBtn = document.getElementById('menu-btn');
+        const mazeElement = document.getElementById('maze');
+        const timerElement = document.getElementById('timer');
+        const scoreElement = document.getElementById('score');
+        const endTitle = document.getElementById('end-title');
+        const endScore = document.getElementById('end-score');
+        const endTime = document.getElementById('end-time');
+        
+        // 遊戲變數
+        let currentLevel = 1;
+        let mazeSize = 10;
+        let cellSize = 40;
+        let playerSize = 20;
+        let enemySize = 20;
+        let goalSize = 30;
+        let maze = [];
+        let player = { x: 0, y: 0 };
+        let goal = { x: 0, y: 0 };
+        let enemies = [];
+        let playerElement;
+        let goalElement;
+        let gameActive = false;
+        let timer;
+        let time = 0;
+        let score = 1000;
+        let enemyTimer;
+        
+        // 事件監聽
+        startBtn.addEventListener('click', showLevelScreen);
+        
+        levelBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                currentLevel = parseInt(this.getAttribute('data-level'));
+                startGame();
+            });
+        });
+        
+        replayBtn.addEventListener('click', function() {
+            hideScreen(endScreen);
+            showLevelScreen();
+        });
+        
+        menuBtn.addEventListener('click', function() {
+            hideScreen(endScreen);
+            showScreen(coverScreen);
+        });
+        
+        document.addEventListener('keydown', movePlayer);
+        
+        // 顯示難度選擇畫面
+        function showLevelScreen() {
+            hideScreen(coverScreen);
+            showScreen(levelScreen);
+        }
+        
+        // 開始遊戲
+        function startGame() {
+            // 停止之前的計時器
+            clearInterval(timer);
+            clearInterval(enemyTimer);
+            
+            // 重設遊戲狀態
+            time = 0;
+            score = 1000;
+            enemies = [];
+            gameActive = true;
+            
+            // 根據難度設置迷宮大小和元素
+            switch(currentLevel) {
+                case 1:
+                    mazeSize = 10;
+                    cellSize = 40;
+                    break;
+                case 2:
+                    mazeSize = 15;
+                    cellSize = 30;
+                    break;
+                case 3:
+                    mazeSize = 20;
+                    cellSize = 20;
+                    break;
+            }
+            
+            // 設置迷宮大小
+            mazeElement.style.width = (mazeSize * cellSize) + 'px';
+            mazeElement.style.height = (mazeSize * cellSize) + 'px';
+            
+            // 清空並生成迷宮
+            mazeElement.innerHTML = '';
+            generateMaze();
+            
+            // 放置玩家和終點
+            placePlayerAndGoal();
+            
+            // 生成敵人
+            createEnemies();
+            
+            // 更新UI
+            updateTimer();
+            updateScore();
+            
+            // 開始計時
+            timer = setInterval(function() {
+                time++;
+                score = Math.max(0, score - 1);
+                updateTimer();
+                updateScore();
+            }, 1000);
+            
+            // 設置敵人移動
+            enemyTimer = setInterval(moveEnemies, 800 - currentLevel * 150);
+            
+            // 顯示遊戲畫面
+            hideScreen(levelScreen);
+            showScreen(gameScreen);
+        }
+        
+        // 生成迷宮
+        function generateMaze() {
+            // 初始化迷宮陣列
+            maze = Array(mazeSize).fill().map(() => Array(mazeSize).fill(1));
+            
+            // 從中間開始生成路徑
+            const startX = Math.floor(mazeSize / 2);
+            const startY = Math.floor(mazeSize / 2);
+            carvePath(startX, startY);
+            
+            // 繪製迷宮
+            for (let y = 0; y < mazeSize; y++) {
+                for (let x = 0; x < mazeSize; x++) {
+                    if (maze[y][x] === 1) {
+                        const wall = document.createElement('div');
+                        wall.className = 'wall';
+                        wall.style.width = cellSize + 'px';
+                        wall.style.height = cellSize + 'px';
+                        wall.style.left = (x * cellSize) + 'px';
+                        wall.style.top = (y * cellSize) + 'px';
+                        mazeElement.appendChild(wall);
+                    }
+                }
+            }
+        }
+        
+        // 遞迴生成迷宮路徑
+        function carvePath(x, y) {
+            maze[y][x] = 0;
+            
+            // 四個方向: 上、右、下、左
+            const directions = [
+                [0, -1], [1, 0], [0, 1], [-1, 0]
+            ];
+            
+            // 隨機排序方向
+            shuffle(directions);
+            
+            for (let i = 0; i < directions.length; i++) {
+                const [dx, dy] = directions[i];
+                const nx = x + dx * 2;
+                const ny = y + dy * 2;
+                
+                if (nx >= 0 && nx < mazeSize && ny >= 0 && ny < mazeSize && maze[ny][nx] === 1) {
+                    maze[y + dy][x + dx] = 0;
+                    carvePath(nx, ny);
+                }
+            }
+        }
+        
+        // 洗牌函數
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        // 放置玩家和終點
+        function placePlayerAndGoal() {
+            // 找到左上角的空位放置玩家
+            for (let y = 0; y < mazeSize; y++) {
+                for (let x = 0; x < mazeSize; x++) {
+                    if (maze[y][x] === 0) {
+                        player = { x, y };
+                        
+                        playerElement = document.createElement('div');
+                        playerElement.id = 'player';
+                        playerElement.style.width = playerSize + 'px';
+                        playerElement.style.height = playerSize + 'px';
+                        playerElement.style.left = (x * cellSize + (cellSize - playerSize) / 2) + 'px';
+                        playerElement.style.top = (y * cellSize + (cellSize - playerSize) / 2) + 'px';
+                        mazeElement.appendChild(playerElement);
+                        
+                        // 找到後立即停止尋找
+                        x = mazeSize;
+                        y = mazeSize;
+                    }
+                }
+            }
+            
+            // 找到右下角的空位放置終點
+            for (let y = mazeSize - 1; y >= 0; y--) {
+                for (let x = mazeSize - 1; x >= 0; x--) {
+                    if (maze[y][x] === 0 && (x !== player.x || y !== player.y)) {
+                        goal = { x, y };
+                        
+                        goalElement = document.createElement('div');
+                        goalElement.id = 'goal';
+                        goalElement.style.width = goalSize + 'px';
+                        goalElement.style.height = goalSize + 'px';
+                        goalElement.style.left = (x * cellSize + (cellSize - goalSize) / 2) + 'px';
+                        goalElement.style.top = (y * cellSize + (cellSize - goalSize) / 2) + 'px';
+                        mazeElement.appendChild(goalElement);
+                        
+                        // 找到後立即停止尋找
+                        x = -1;
+                        y = -1;
+                    }
+                }
+            }
+        }
+        
+        // 創建敵人
+        function createEnemies() {
+            const enemyCount = currentLevel * 3; // 根據難度設置敵人數量
+            
+            for (let i = 0; i < enemyCount; i++)
